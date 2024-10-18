@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Bitcoin Address Balance Checker</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+        <style>
+            :root {
+                --bg-color: #f0f0f0;
+                --text-color: #333;
+                --card-bg: #ffffff;
+                --link-color: #3498db;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --bg-color: #2c3e50;
+                    --text-color: #ecf0f1;
+                    --card-bg: #34495e;
+                    --link-color: #3498db;
+                }
+            }
+
+            body {
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                background-color: var(--bg-color);
+                color: var(--text-color);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                margin: 0;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+
+            .container {
+                background-color: var(--card-bg);
+                border-radius: 8px;
+                padding: 2rem;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                max-width: 400px;
+                width: 100%;
+            }
+
+            h1 {
+                text-align: center;
+                margin-bottom: 1.5rem;
+                font-size: 1.8rem;
+            }
+
+            #result {
+                text-align: center;
+            }
+
+            #result p {
+                margin: 0.5rem 0;
+                font-size: 1rem;
+            }
+
+            .balance-eur {
+                font-size: 2.5rem;
+                font-weight: bold;
+                margin: 1rem 0;
+            }
+
+            a {
+                color: var(--link-color);
+                text-decoration: none;
+            }
+
+            a:hover {
+                text-decoration: underline;
+            }
+
+            .instructions {
+                text-align: center;
+                margin-bottom: 1rem;
+                font-size: 0.9rem;
+                display: none;
+            }
+
+            code {
+                background-color: rgba(0, 0, 0, 0.1);
+                padding: 2px 4px;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 0.9em;
+            }
+
+            /* Mobile-specific styles */
+            @media (max-width: 480px) {
+                body {
+                    padding: 10px;
+                }
+
+                .container {
+                    padding: 1.5rem;
+                }
+
+                h1 {
+                    font-size: 1.5rem;
+                }
+
+                .balance-eur {
+                    font-size: 2rem;
+                }
+
+                #result p {
+                    font-size: 0.9rem;
+                }
+
+                .instructions {
+                    font-size: 0.8rem;
+                }
+
+                code {
+                    font-size: 0.8em;
+                    word-break: break-all;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div id="instructions" class="instructions">
+                Add a Bitcoin address to the URL as a query string:<br />
+                <code>?address=your_bitcoin_address</code>
+            </div>
+            <div id="result"></div>
+        </div>
+
+        <script>
+            function formatFiat(amount) {
+                return new Intl.NumberFormat(navigator.language, {
+                    style: "currency",
+                    currency: "EUR",
+                }).format(amount);
+            }
+
+            function formatBtc(amount) {
+                return new Intl.NumberFormat(navigator.language, {
+                    style: "decimal",
+                    minimumFractionDigits: 8,
+                    maximumFractionDigits: 8,
+                }).format(amount);
+            }
+
+            async function checkBalance(address) {
+                const resultDiv = document.getElementById("result");
+                resultDiv.innerHTML = "";
+
+                try {
+                    const balanceResponse = await axios.get(
+                        `https://mempool.space/api/address/${address}`
+                    );
+                    const satoshiBalance =
+                        balanceResponse.data.chain_stats.funded_txo_sum -
+                        balanceResponse.data.chain_stats.spent_txo_sum;
+                    const bitcoinBalance = satoshiBalance / 100000000;
+
+                    const priceResponse = await axios.get(
+                        "https://api.kraken.com/0/public/Ticker?pair=XBTEUR"
+                    );
+                    const eurPrice = parseFloat(
+                        priceResponse.data.result.XXBTZEUR.c[0]
+                    );
+
+                    const eurValue = bitcoinBalance * eurPrice;
+
+                    const language = navigator.language.split("-")[0];
+                    let viewMoreText = "View more details on mempool.space";
+
+                    if (language === "it") {
+                        viewMoreText =
+                            "Visualizza più dettagli su mempool.space";
+                    }
+
+                    resultDiv.innerHTML = `
+                        <div class="balance-eur">${formatFiat(eurValue)}</div>
+                        <p>${formatBtc(bitcoinBalance)} BTC</p>
+                        <p>1 BTC = ${formatFiat(eurPrice)}</p>
+                        <p><a href="https://mempool.space/address/${address}" rel="noopener noreferrer" target="_blank">${viewMoreText}</a></p>
+                    `;
+                } catch (error) {
+                    resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+                }
+            }
+            function getQueryParam(param) {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get(param);
+            }
+
+            window.onload = function () {
+                const addressParam = getQueryParam("address");
+                if (addressParam) {
+                    checkBalance(addressParam);
+                } else {
+                    document.getElementById("instructions").style.display =
+                        "block";
+                }
+            };
+        </script>
+    </body>
+</html>
